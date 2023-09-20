@@ -9,7 +9,7 @@ from numpy.ctypeslib import ndpointer
 import wrapper_setup as wrapper_setup
 
 import gym
-
+import mpy4py as MPI
 
 """Setting up all the global/settings variables"""
 
@@ -92,15 +92,16 @@ class WEABM_Environment(gym.Env):
         The agent will observe cytokine levels present on the surface of the simulated wound, then take an action based on that obervation. The action will either add an amount of a particular cytokine evenly to every cell on the surface, or take away up to all of a particular cytokine present in the surface cells.
 
     """
-    def __init__(self, action_scaling_factor=1, SAVE_LOCATION=None):
+    def __init__(self, action_scaling_factor=1, SAVE_LOCATION=None, rank=None, seed=0):
         """ action_scaling_factor (float): The amount that the agents actions will be scaled when doing the action.
                 Agent action choices are between -1 and 1, so this factor scales the chosen number
             SAVE_LOCATION (string): path like object to determine where the simulation data will be saved
         """
         super(WEABM_Environment, self).__init__()
         self.save_path = SAVE_LOCATION
+        self.rank = rank                                            # rank for saving data if running envs in parallel
         self.MAX_STEPS = MAX_STEPS                                  # Max steps for simulation episode. Set as a global
-        self.seed = 0                                               # Seed for the simulation
+        self.seed = seed                                               # Seed for the simulation
         self.current_step = 0                                       # The current step of the simulation environment
         self.current_cytos = np.zeros(TOTAL_OBSERVABLE_CYTOKINES)   # Placeholder array to store current oberved surface cytokines
         self.current_viable_muscle = 0                              # counters to track current totals of muslce, collagen, etc
@@ -229,8 +230,11 @@ class WEABM_Environment(gym.Env):
     def save_training_data(self):
         """ saves the relevant data from the simulation from training
         """
-        comm = MPI.COMM_WORLD
-        rank = comm.Get_rank()
+        if rank is None:
+            comm = MPI.COMM_WORLD
+            rank = comm.Get_rank()
+        else:
+            rank = self.rank
         with open(self.save_path+"/" + str(rank) + "_training_data.csv", "ab") as f:
             saveArray = self.viable_muscle_history
             saveArray = np.vstack((saveArray, self.collagen3_history))
